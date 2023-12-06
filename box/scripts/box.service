@@ -154,10 +154,12 @@ prepare_sing_tun_pkglist() {
   fi
   case ${proxy_mode} in
     blacklist)
-      "${yq_command}" --arg pkgs "${pkg_list%,}" '.inbounds.[] | select(.type == "tun") += {"exclude_package":[$pkgs]}' -i --output-format=json "${sing_config}"
+      "${yq_command}" '.inbounds.[] | select(.type == "tun") += {"exclude_package": '"[$pkg_list%,]"'}' -i --output-format=json "${sing_config}"
+      log Debug "[Tun] exclude packages added: ${packages_list[*]}"
     ;;
     whitelist)
-      "${yq_command}" --arg pkgs "${pkg_list%,}" '.inbounds.[] | select(.type == "tun") += {"include_package":[$pkgs]}' -i --output-format=json "${sing_config}"
+      "${yq_command}" '.inbounds.[] | select(.type == "tun") += {"include_package": '"[$pkg_list%,]"'}' -i --output-format=json "${sing_config}"
+      log Debug "[Tun] include packages added: ${packages_list[*]}"
     ;;
     *)
     ;;
@@ -193,6 +195,7 @@ prepare_singbox() {
     else
       # Add "tun" configuration if missing
       "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": [],"exclude_package": []}]' -i --output-format=json "${sing_config}"
+      sleep 1 
       prepare_sing_tun_pkglist
       log Debug "[Tun] configuration has been added to ${sing_config}"
     fi
