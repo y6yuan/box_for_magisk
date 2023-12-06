@@ -136,36 +136,6 @@ box_create_tun() {
   fi
 }
 
-prepare_sing_tun_pkglist() {
-  yq_command="yq"
-  if ! command -v yq &>/dev/null; then
-    if [ ! -e "${box_dir}/bin/yq" ]; then
-      log Debug "yq file not found, start to download from github"
-      ${scripts_dir}/box.tool upyq
-    fi
-    yq_command="${box_dir}/bin/yq"
-  fi
-
-  if [ -n "${packages_list[*]}" ]; then
-    pkg_list=''
-    for package in "${packages_list[@]}"; do
-      pkg_list+='"'"${package}"'",'
-    done
-  fi
-  case ${proxy_mode} in
-    blacklist)
-      "${yq_command}" '.inbounds.[] | select(.type == "tun") += {"exclude_package": '"[$pkg_list%,]"'}' -i --output-format=json "${sing_config}"
-      log Debug "[Tun] exclude packages added: ${packages_list[*]}"
-    ;;
-    whitelist)
-      "${yq_command}" '.inbounds.[] | select(.type == "tun") += {"include_package": '"[$pkg_list%,]"'}' -i --output-format=json "${sing_config}"
-      log Debug "[Tun] include packages added: ${packages_list[*]}"
-    ;;
-    *)
-    ;;
-  esac
-}
-
 prepare_singbox() {
   # check configuration file
   if ! [ -f "${sing_config}" ]; then
@@ -193,10 +163,26 @@ prepare_singbox() {
     if grep -q '"type": "tun"' "${sing_config}"; then
       log Info "type [Tun] already exists in ${sing_config}"
     else
+      # Get the package list
+      if [ -n "${packages_list[*]}" ]; then
+        pkg_list=''
+        for package in "${packages_list[@]}"; do
+          pkg_list+='"'"${package}"'",'
+        done
+      fi
       # Add "tun" configuration if missing
-      "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": [],"exclude_package": []}]' -i --output-format=json "${sing_config}"
-      sleep 1 
-      prepare_sing_tun_pkglist
+      case ${proxy_mode} in
+        blacklist)
+          "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": [],"exclude_package": '"[${pkg_list%,}]"'}]' -i --output-format=json "${sing_config}"
+          log Debug "[Tun] exclude packages added: ${packages_list[*]}"
+        ;;
+        whitelist)
+          "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": '"[${pkg_list%,}]"',"exclude_package": []' -i --output-format=json "${sing_config}"
+          log Debug "[Tun] include packages added: ${packages_list[*]}"
+        ;;
+        *)
+        ;;
+      esac
       log Debug "[Tun] configuration has been added to ${sing_config}"
     fi
     # Checks if "type" is "redirect" in configuration
