@@ -156,44 +156,44 @@ prepare_singbox() {
   fi
 
   # delete Toggle comment, because yq doesn't work, Execute the sed command to uncomment the "/* ... */", "//" line
-  sed -i '/\/\*/,/\*\//d; /^[[:space:]]*\/\//d; /^( *\/\/|\/\*.*\*\/)$/d' "${box_dir}/sing-box/"*.json
-  if [[ "${network_mode}" == "mixed" || "${proxy_mode}" == "tun" ]]; then
-    if grep -q '"type": "tproxy"' "${sing_config}"; then
-      "${yq_command}" 'del(.inbounds[] | select(.type == "tproxy"))' -i --output-format=json "${sing_config}"
-    fi
-    # Checks if "type" is "tun" in configuration
-    if grep -q '"type": "tun"' "${sing_config}"; then
-      log Info "type [Tun] already exists in ${sing_config}"
-    else
-      # Get the package list
-      if [ -n "${packages_list[*]}" ]; then
-        pkg_list=''
-        for package in "${packages_list[@]}"; do
-          pkg_list+='"'"${package}"'",'
-        done
+  # sed -i '/\/\*/,/\*\//d; /^[[:space:]]*\/\//d; /^( *\/\/|\/\*.*\*\/)$/d' "${box_dir}/sing-box/"*.json
+
+  # format sing-box configuration
+  if ${bin_path} format -w -D "${box_dir}/${bin_name}" -C "${box_dir}/${bin_name}" > "${box_run}/${bin_name}.log" 2>&1; then
+  # if sed -i '/\/\*/,/\*\//d; /^[[:space:]]*\/\//d; /^( *\/\/|\/\*.*\*\/)$/d' "${box_dir}/sing-box/"*.json 2>&1; then
+    if [[ "${network_mode}" == "mixed" || "${proxy_mode}" == "tun" ]]; then
+      if grep -q '"type": "tproxy"' "${sing_config}"; then
+        "${yq_command}" 'del(.inbounds[] | select(.type == "tproxy"))' -i --output-format=json "${sing_config}"
       fi
-      # Add "tun" configuration if missing
-      case ${proxy_mode} in
-        blacklist)
-          "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": [],"exclude_package": '"[${pkg_list%,}]"'}]' -i --output-format=json "${sing_config}"
-          log Debug "[Tun] exclude packages added: ${packages_list[*]}"
-        ;;
-        whitelist)
-          "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": '"[${pkg_list%,}]"',"exclude_package": []' -i --output-format=json "${sing_config}"
-          log Debug "[Tun] include packages added: ${packages_list[*]}"
-        ;;
-        *)
-        ;;
-      esac
-      log Debug "[Tun] configuration has been added to ${sing_config}"
-    fi
-    # Checks if "type" is "redirect" in configuration
-    if [ "${network_mode}" = "mixed" ]; then
-      if grep -q '"type": "redirect"' "${sing_config}"; then
-        log Info "type [Redirect] already exists in ${sing_config}"
+
+      # Checks if "type" is "tun" in configuration
+      if grep -q '"type": "tun"' "${sing_config}"; then
+        log Info "type [Tun] already exists in ${sing_config}"
+        if ! grep -q '"auto_route": true' "${sing_config}"; then
+          log Error 'please set/add "auto_route": true in inbounds[tun]'
+          exit 1
+        fi
       else
         # Add "tun" configuration if missing
-        "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "utun","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [0,10],"include_package": [],"exclude_package": []}]' -i --output-format=json "${sing_config}"
+        # Get the package list
+        if [ -n "${packages_list[*]}" ]; then
+          pkg_list=''
+          for package in "${packages_list[@]}"; do
+            pkg_list+='"'"${package}"'",'
+          done
+        fi
+        case ${proxy_mode} in
+          blacklist)
+            "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": [],"exclude_package": '"[${pkg_list%,}]"'}]' -i --output-format=json "${sing_config}"
+            log Debug "[Tun] exclude packages added: ${packages_list[*]}"
+          ;;
+          whitelist)
+            "${yq_command}" '.inbounds += [{"type": "tun","tag": "tun-in","interface_name": "tun3","inet4_address": "172.19.0.1/30","inet6_address": "fdfe:dcba:9876::1/126","mtu": 9000,"stack": "system","auto_route": true,"strict_route": false,"inet4_route_exclude_address": ["192.168.0.0/16"],"inet6_route_exclude_address": ["fc00::/7"],"sniff": true,"sniff_override_destination": false,"include_android_user": [],"include_package": '"[${pkg_list%,}]"',"exclude_package": []' -i --output-format=json "${sing_config}"
+            log Debug "[Tun] include packages added: ${packages_list[*]}"
+          ;;
+          *)
+          ;;
+        esac
         log Debug "[Tun] configuration has been added to ${sing_config}"
       fi
 
@@ -472,8 +472,10 @@ box_bin_status() {
     return 1
   fi
 
+  stack=$(if [ "${bin_name}" != "clash" ]; then find "/data/adb/box/sing-box" -type f -name "*.json" -exec busybox awk -F'"' '/"stack"/{print $4}' {} +; else busybox awk '!/^ *#/ && /stack: / { print $2;found=1; exit}' "${clash_config}"; fi)
+
   log Info "${bin_name} service is running."
-  log Info "Proxy-mode: ${proxy_mode}, $(if [ "${proxy_mode}" != "tun" ]; then echo Network-mode: ${network_mode}; fi)"
+  log Info "proxy: ${proxy_mode} | $(if [ "${proxy_mode}" != "tun" ]; then echo network: ${network_mode}; fi) | $(if [[ "${proxy_mode}" == "tun" || ${network_mode} == "mixed" ]]; then echo stack: ${stack}; fi)"
 
   # Get the memory usage of the binary
   rss=$(grep VmRSS /proc/$PID/status | busybox awk '{ print $2 }')
@@ -537,14 +539,6 @@ start_box() {
   echo -n "" > "${box_log}"
   box_version=$(busybox awk '!/^ *#/ && /version=/ { print $0 }' "/data/adb/modules/box_for_root/module.prop" 2>/dev/null)
 
-  # busybox check
-  busybox_code=$(busybox | head -n 1 | busybox awk '{print $2}' | sed -e 's/^v//' -e 's/-osm0sis$//' -e 's/-Magisk$//')
-  if [ "$(echo "${busybox_code}" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" -lt "$(echo "1.36.1" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" ]; then
-    log Info "Current busybox v${busybox_code}"
-    log Error "Please update your busybox to version 1.36.1+ latest"
-    exit 1
-  fi
-
   if [ -t 1 ]; then
     echo -e "${yellow}$(getprop persist.sys.timezone)${normal}"
     echo -e "${yellow}$(getprop gsm.sim.operator.alpha) / $(getprop gsm.network.type)${normal}"
@@ -597,8 +591,14 @@ start_box() {
       ;;
   esac
 
-  # show the current version of busybox
-  log Info "Current busybox v${busybox_code}"
+  # busybox check
+  busybox_code=$(busybox | head -n 1 | busybox awk '{print $2}' | sed -e 's/^v//' -e 's/-osm0sis$//' -e 's/-Magisk$//')
+  if [ "$(echo "${busybox_code}" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" -lt "$(echo "1.36.1" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" ]; then
+    log Info "Current $(which busybox) v${busybox_code}"
+    log Warning "Please update your busybox to v1.36.1+"
+  else
+    log Info "Current $(which busybox) v${busybox_code}"
+  fi
 
   # Check permissions, check for bin existence, delete old logs, create a TUN if necessary, run box, and wait for 1 second
   box_permission
