@@ -298,9 +298,29 @@ prepare_clash() {
         '  auto-route: true' \
         '  strict-route: false' \
         '  auto-detect-interface: true' \
-        '  include-android-user: [0, 10]' \
-        '  exclude-package: [] # blacklist' \
-        '  include-package: [] # whitelist' \ >> "${clash_config}"
+        '  include-android-user: [0, 10]' \ >> ${clash_config}
+      if [ -n "${packages_list[*]}" ]; then
+        case ${proxy_mode} in
+          blacklist)
+              printf '%s\n' '' '  exclude-package: [' >> ${clash_config}
+              for package in "${packages_list[@]}"; do
+                  printf '%s\n' "    - ${package}"
+              done
+              printf '%s\n' '' '  ]' >> ${clash_config}
+              log Debug "[Tun] exclude packages added: ${packages_list[*]}"
+          ;;
+          whitelist)
+              printf '%s\n' '' '  include-package: [' >> ${clash_config}
+              for package in "${packages_list[@]}"; do
+                  printf '%s\n' "    - ${package}"
+              done
+              printf '%s\n' '' '  ]' >> ${clash_config}
+              log Debug "[Tun] include packages added: ${packages_list[*]}"
+          ;;
+          *)
+          ;;
+        esac
+      fi
       log Debug "[tun] configuration has been added to ${clash_config}"
     else
       log Info  "type [tun] already exists in ${clash_config}"
