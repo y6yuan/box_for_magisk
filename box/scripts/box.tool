@@ -172,10 +172,9 @@ upcurl() {
   mkdir -p "${bin_dir}/backup"
   [ -f "${bin_dir}/curl" ] && cp "${bin_dir}/curl" "${bin_dir}/backup/curl.bak" >/dev/null 2>&1
 
-  local latest_version=$(busybox wget --no-check-certificate -qO- "https://api.github.com/repos/stunnel/static-curl/releases" | grep "tag_name" | grep -o "[0-9.]*" | head -1)
-  [ -z "${latest_version}" ] && latest_version="8.4.0"
+  local latest_version=$(busybox wget --no-check-certificate -qO- "https://api.github.com/repos/stunnel/static-curl/releases" | grep "tag_name" | busybox grep -oE "[0-9.]*" | head -1)
 
-  local download_link="https://github.com/stunnel/static-curl/releases/download/${latest_version}/curl-static-${arch}-${latest_version}.tar.xz"
+  local download_link="https://github.com/stunnel/static-curl/releases/download/${latest_version}/curl-linux-${arch}-${latest_version}.tar.xz"
 
   log Debug "Download ${download_link}"
   upfile "${bin_dir}/curl.tar.xz" "${download_link}"
@@ -346,7 +345,7 @@ upkernel() {
       api_url="https://api.github.com/repos/SagerNet/sing-box/releases"
       url_down="https://github.com/SagerNet/sing-box/releases"
 
-      latest_version=$(busybox wget --no-check-certificate -qO- "${api_url}" | grep "tag_name" | grep -o "v[0-9].*" | head -1 | cut -d'"' -f1)
+      latest_version=$(busybox wget --no-check-certificate -qO- "${api_url}" | grep "tag_name" | busybox grep -oE "v[0-9].*" | head -1 | cut -d'"' -f1)
       download_link="${url_down}/download/${latest_version}/sing-box-${latest_version#v}-${platform}-${arch}.tar.gz"
       log Debug "download ${download_link}"
       upfile "${box_dir}/${file_kernel}.tar.gz" "${download_link}" && xkernel
@@ -358,7 +357,7 @@ upkernel() {
         download_link="https://github.com/MetaCubeX/mihomo/releases"
 
         if [ "${mihomo_stable}" = "enable" ]; then
-          latest_version=$(busybox wget --no-check-certificate -qO- "https://api.github.com/repos/MetaCubeX/mihomo/releases" | grep "tag_name" | grep -o "v[0-9.]*" | head -1)
+          latest_version=$(busybox wget --no-check-certificate -qO- "https://api.github.com/repos/MetaCubeX/mihomo/releases" | grep "tag_name" | busybox grep -oE "v[0-9.]*" | head -1)
           tag="$latest_version"
         else
           if [ "$use_ghproxy" == true ]; then
@@ -374,7 +373,7 @@ upkernel() {
         upfile "${box_dir}/${file_kernel}.gz" "${download_link}/download/${tag}/${filename}.gz" && xkernel
       else
         log Warning "clash.${xclash_option} Repository has been deleted"
-        # filename=$(busybox wget --no-check-certificate -qO- "https://github.com/Dreamacro/clash/releases/expanded_assets/premium" | grep -oE "clash-linux-${arch}-[0-9]+.[0-9]+.[0-9]+" | head -1)
+        # filename=$(busybox wget --no-check-certificate -qO- "https://github.com/Dreamacro/clash/releases/expanded_assets/premium" | busybox grep -oE "clash-linux-${arch}-[0-9]+.[0-9]+.[0-9]+" | head -1)
         # log Debug "download https://github.com/Dreamacro/clash/releases/download/premium/${filename}.gz"
         # upfile "${box_dir}/${file_kernel}.gz" "https://github.com/Dreamacro/clash/releases/download/premium/${filename}.gz" && xkernel
       fi
@@ -383,7 +382,7 @@ upkernel() {
       [ "${bin_name}" = "xray" ] && bin='Xray' || bin='v2ray'
       api_url="https://api.github.com/repos/$(if [ "${bin_name}" = "xray" ]; then echo "XTLS/Xray-core/releases"; else echo "v2fly/v2ray-core/releases"; fi)"
       # set download link and get the latest version
-      latest_version=$(busybox wget --no-check-certificate -qO- ${api_url} | grep "tag_name" | grep -o "v[0-9.]*" | head -1)
+      latest_version=$(busybox wget --no-check-certificate -qO- ${api_url} | grep "tag_name" | busybox grep -oE "v[0-9.]*" | head -1)
 
       case $(uname -m) in
         "i386") download_file="$bin-linux-32.zip" ;;

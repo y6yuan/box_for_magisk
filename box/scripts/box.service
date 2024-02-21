@@ -493,7 +493,7 @@ box_bin_status() {
 
   stack=$(if [ "${bin_name}" != "clash" ]; then find "/data/adb/box/sing-box" -type f -name "*.json" -exec busybox awk -F'"' '/"stack"/{print $4}' {} +; else busybox awk '!/^ *#/ && /stack: / { print $2;found=1; exit}' "${clash_config}"; fi)
 
-  log Info "${bin_name} service is running."
+  TOAST=1 log Info "${bin_name} service is running."
   log Info "proxy: ${proxy_mode} | $(if [ "${proxy_mode}" != "tun" ]; then echo network: ${network_mode}; fi) | $(if [[ "${proxy_mode}" == "tun" || ${network_mode} == "mixed" ]]; then echo stack: ${stack}; fi)"
 
   # Get the memory usage of the binary
@@ -611,7 +611,7 @@ start_box() {
   esac
 
   # busybox check
-  busybox_code=$(busybox | head -n 1 | busybox awk '{print $2}' | sed -e 's/^v//' -e 's/-osm0sis$//' -e 's/-Magisk$//')
+  busybox_code=$(busybox | head -n 1 | busybox awk '{print $2}' | busybox grep -oE '[0-9.]*')
   if [ "$(echo "${busybox_code}" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" -lt "$(echo "1.36.1" | busybox awk -F. '{printf "%03d%03d%03d\n", $1, $2, $3}')" ]; then
     log Info "Current $(which busybox) v${busybox_code}"
     log Warning "Please update your busybox to v1.36.1+"
@@ -671,7 +671,7 @@ stop_box() {
       rm -f "${box_pid}"
     fi
     log Warning "${bin_name} shutting down, service is stopped."
-    log Warning "${bin_name} disconnected."
+    TOAST=1 log Warning "${bin_name} disconnected."
     [ -t 1 ] && echo -e "${white}--------------------------------------------${normal}"
   else
     log Warning "${bin_name} Not stopped; may still be shutting down or failed to shut down."
