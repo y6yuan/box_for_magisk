@@ -6,7 +6,8 @@ source /data/adb/box/settings.ini
 # user agent
 user_agent="box_for_root"
 # whether use ghproxy to accelerate github download
-use_ghproxy=false
+url_ghproxy="https://mirror.ghproxy.com"
+use_ghproxy="true"
 # to enable/disable download the stable mihomo kernel
 mihomo_stable="enable"
 
@@ -20,7 +21,7 @@ upfile() {
   fi
   # Use ghproxy
   if [ "${use_ghproxy}" == true ] && [[ "${update_url}" == @(https://github.com/*|https://raw.githubusercontent.com/*|https://gist.github.com/*|https://gist.githubusercontent.com/*) ]]; then
-    update_url="https://mirror.ghproxy.com/${update_url}"
+    update_url="${url_ghproxy}/${update_url}"
   fi
   # request
   request="busybox wget"
@@ -162,7 +163,7 @@ reload() {
 upcurl() {
   local arch
   case $(uname -m) in
-    "aarch64") arch="arm64" ;;
+    "aarch64") arch="aarch64" ;;
     "armv7l"|"armv8l") arch="armv7" ;;
     "i686") arch="i686" ;;
     "x86_64") arch="amd64" ;;
@@ -253,13 +254,13 @@ upsubs() {
   enhanced=false
   update_file_name="${clash_config}"
   if [ "${renew}" != "true" ]; then
-    yq_command="yq"
+    yq="yq"
     if ! command -v yq &>/dev/null; then
       if [ ! -e "${box_dir}/bin/yq" ]; then
         log Debug "yq file not found, start to download from github"
         ${scripts_dir}/box.tool upyq
       fi
-      yq_command="${box_dir}/bin/yq"
+      yq="${box_dir}/bin/yq"
     fi
     enhanced=true
     update_file_name="${update_file_name}.subscription"
@@ -276,16 +277,16 @@ upsubs() {
             log Info "${update_file_name} saved"
             # If there is a yq command, extract the proxy information from the yml and output it to the clash_provide_config file
             if [ "${enhanced}" = "true" ]; then
-              if ${yq_command} '.proxies' "${update_file_name}" >/dev/null 2>&1; then
-                "${yq_command}" '.proxies' "${update_file_name}" > "${clash_provide_config}"
-                "${yq_command}" -i '{"proxies": .}' "${clash_provide_config}"
+              if ${yq} '.proxies' "${update_file_name}" >/dev/null 2>&1; then
+                ${yq} '.proxies' "${update_file_name}" > "${clash_provide_config}"
+                ${yq} -i '{"proxies": .}' "${clash_provide_config}"
 
                 if [ "${custom_rules_subs}" = "true" ]; then
-                  if ${yq_command} '.rules' "${update_file_name}" >/dev/null 2>&1; then
+                  if ${yq} '.rules' "${update_file_name}" >/dev/null 2>&1; then
 
-                    "${yq_command}" '.rules' "${update_file_name}" > "${clash_provide_rules}"
-                    "${yq_command}" -i '{"rules": .}' "${clash_provide_rules}"
-                    "${yq_command}" -i 'del(.rules)' "${clash_config}"
+                    ${yq} '.rules' "${update_file_name}" > "${clash_provide_rules}"
+                    ${yq} -i '{"rules": .}' "${clash_provide_rules}"
+                    ${yq} -i 'del(.rules)' "${clash_config}"
 
                     cat "${clash_provide_rules}" >> "${clash_config}"
                   fi
@@ -332,7 +333,7 @@ upkernel() {
     cp "${bin_dir}/${bin_name}" "${bin_dir}/backup/${bin_name}.bak" >/dev/null 2>&1
   fi
   case $(uname -m) in
-    "aarch64") arch="arm64"; platform="android" ;;
+    "aarch64") if [ "${bin_name}" = "clash" ]; then arch="arm64-v8"; else arch="arm64"; fi; platform="android" ;;
     "armv7l"|"armv8l") arch="armv7"; platform="linux" ;;
     "i686") arch="386"; platform="linux" ;;
     "x86_64") arch="amd64"; platform="linux" ;;
@@ -361,10 +362,10 @@ upkernel() {
           tag="$latest_version"
         else
           if [ "$use_ghproxy" == true ]; then
-            download_link="https://mirror.ghproxy.com/${download_link}"
+            download_link="${url_ghproxy}/${download_link}"
           fi
           tag="Prerelease-Alpha"
-          latest_version=$(busybox wget --no-check-certificate -qO- "${download_link}/expanded_assets/${tag}" | grep -oE "alpha-[0-9a-z]+" | head -1)
+          latest_version=$(busybox wget --no-check-certificate -qO- "${download_link}/expanded_assets/${tag}" | busybox grep -oE "alpha-[0-9a-z]+" | head -1)
         fi
         # set the filename based on platform and architecture
         filename="mihomo-${platform}-${arch}-${latest_version}"
@@ -489,7 +490,7 @@ upxui() {
     file_dashboard="${box_dir}/${xdashboard}.zip"
     url="https://github.com/MetaCubeX/metacubexd/archive/gh-pages.zip"
     if [ "$use_ghproxy" == true ]; then
-      url="https://mirror.ghproxy.com/${url}"
+      url="${url_ghproxy}/${url}"
     fi
     dir_name="metacubexd-gh-pages"
     log Debug "Download ${url}"
@@ -629,8 +630,59 @@ cgroup_cpuset() {
   return 0
 }
 
-ip_port=$(if [ "${bin_name}" = "clash" ]; then busybox awk '/external-controller:/ {print $2}' "${clash_config}"; else find /data/adb/box/sing-box/ -maxdepth 1 -type f -name "*.json" -exec busybox awk -F':' '/experimental/,/\}/' {} \; | sed -n 's/.*"external_controller": "\(.*\)",/\1/p'; fi;)
+ip_port=$(if [ "${bin_name}" = "clash" ]; then busybox awk '/external-controller:/ {print $2}' "${clash_config}"; else find /data/adb/box/sing-box/ -type f -name 'config.json' -exec busybox awk -F'[:,]' '/external_controller/ {print $2":"$3}' {} \; | sed 's/^[ \t]*//;s/"//g'; fi;)
 secret=""
+
+webroot() {
+path_webroot="/data/adb/modules/box_for_root/webroot/index.html"
+touch -n > $path_webroot
+  if [[ "${bin_name}" = @(clash|sing-box) ]]; then
+    echo -e '
+  <!DOCTYPE html>
+  <script>
+      document.location = 'http://127.0.0.1:9090/ui/'
+  </script>
+  </html>
+  ' > $path_webroot
+    sed -i "s#document\.location =.*#document.location = 'http://$ip_port/ui/'#" $path_webroot
+  else
+   echo -e '
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Unsupported Dashboard</title>
+      <style>
+          body {
+              font-family: Arial, sans-serif;
+              text-align: center;
+              padding: 50px;
+          }
+          h1 {
+              color: red;
+          }
+      </style>
+  </head>
+  <body>
+      <h1>Unsupported Dashboard</h1>
+      <p>Sorry, xray/v2ray does not support the necessary Dashboard features.</p>
+  </body>
+  </html>' > $path_webroot
+  fi
+}
+
+bond1() {
+  su -mm -c "cmd wifi force-low-latency-mode enabled"
+  su -mm -c "sysctl -w net.ipv4.tcp_low_latency=1"
+  su -mm -c "ip link set dev wlan0 txqueuelen 4000"
+}
+
+bond0() {
+  su -mm -c "cmd wifi force-low-latency-mode disabled"
+  su -mm -c "sysctl -w net.ipv4.tcp_low_latency=0"
+  su -mm -c "ip link set dev wlan0 txqueuelen 3000"
+}
 
 case "$1" in
   check)
@@ -653,13 +705,14 @@ case "$1" in
         ;;
     esac
     ;;
+  bond0|bond1)
+    $1
+    ;;
   geosub)
     upsubs
     upgeox
     if [ -f "${box_pid}" ]; then
-      if kill -0 "$(<"${box_pid}" 2>/dev/null)"; then
-        reload
-      fi
+      kill -0 "$(<"${box_pid}" 2>/dev/null)" && reload
     fi
     ;;
   geox|subs)
@@ -670,9 +723,7 @@ case "$1" in
       [ "${bin_name}" != "clash" ] && exit 1
     fi
     if [ -f "${box_pid}" ]; then
-      if kill -0 "$(<"${box_pid}" 2>/dev/null)"; then
-        reload
-      fi
+      kill -0 "$(<"${box_pid}" 2>/dev/null)" && reload
     fi
     ;;
   upkernel)
@@ -687,6 +738,9 @@ case "$1" in
   reload)
     reload
     ;;
+  webroot)
+    webroot
+    ;;
   all)
     upyq
     upcurl
@@ -699,6 +753,6 @@ case "$1" in
     ;;
   *)
     echo "${red}$0 $1 no found${normal}"
-    echo "${yellow}usage${normal}: ${green}$0${normal} {${yellow}check|memcg|cpuset|blkio|geosub|geox|subs|upkernel|upxui|upyq|upcurl|reload|all${normal}}"
+    echo "${yellow}usage${normal}: ${green}$0${normal} {${yellow}check|memcg|cpuset|blkio|geosub|geox|subs|upkernel|upxui|upyq|upcurl|reload|webroot|bond0|bond1|all${normal}}"
     ;;
 esac
